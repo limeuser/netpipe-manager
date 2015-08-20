@@ -1,0 +1,7 @@
+架构：
+
+1. 每个数据源有两个通道，一个数据通道，一个控制通道，每个通道可以接受多个连接，相当于ZMQ的socket；
+2. 通道需要屏蔽底层传输协议的差别，可以使用netty或者ZMQ；
+3. 数据输出方是producer，数据使用方是consumer;
+4. 通过配置producer和consumer来调度task，通过规划producer和consumer的连接来构建数据流DAG；
+5. task的创建不通过编译器实现，通过配置运行时参数实现；

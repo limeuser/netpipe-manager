@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<classpath>
+	<classpathentry kind="src" path="src"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/netpipe"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/agent"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/mjoys"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/netpipe-jobs"/>
+	<classpathentry kind="lib" path="lib/commons-io-2.4.jar" sourcepath="lib/commons-io-2.4-sources.jar">
+		<attributes>
+			<attribute name="javadoc_location" value="jar:platform:/resource/netpipe-master/lib/commons-io-2.4-javadoc.jar!/"/>
+		</attributes>
+	</classpathentry>
+	<classpathentry kind="con" path="org.eclipse.jdt.launching.JRE_CONTAINER"/>
+	<classpathentry combineaccessrules="false" kind="src" path="/agentservice"/>
+	<classpathentry kind="output" path="bin"/>
+</classpath>
