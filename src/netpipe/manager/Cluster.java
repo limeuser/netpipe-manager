@@ -95,7 +95,7 @@ public class Cluster {
         
         // start task
         for (RunningTask task : runningTasks) {
-            
+            task.getHost().runTask(task);
         }
     }
     
@@ -119,25 +119,6 @@ public class Cluster {
         }
         
         return idleHost;
-    }
-    
-    public void sendTo(Host host, String service, byte[] body) {
-    	GetIdResponse response = host.getSyncRpc().getId(new Tag(AgentProtocol.PublicTag.servicename.name(), service));
-        for (int id : response.getIds()) {
-           host.getAsynRpc().sendTo(id, body); 
-        }
-    }
-    
-    public void sentTo(String service, byte[] body, Host ...hosts) {
-        for (Host host : hosts) {
-            sendTo(host, service, body);
-        }
-    }
-    
-    public void sendToAll(String service, byte[] body) {
-        for (Host host : members) {
-        	sendTo(host, service, body);
-        }
     }
     
     public void requestTaskStatus() {

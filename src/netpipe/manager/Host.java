@@ -6,19 +6,19 @@ import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 
-import service.ftp.FtpClient;
 import mjoys.util.Address;
 import mjoys.util.IdGenerator;
 import mjoys.util.Logger;
+import mjoys.util.PathUtil;
 import mjoys.util.StringUtil;
-import mjoys.util.TLVFrame;
-import netpipe.pipe.Config;
-import netpipe.pipe.PipeStatus;
-import netpipe.pipe.TaskStatus;
 import netpipe.core.Service;
 import netpipe.generator.PipeDes;
 import netpipe.generator.TaskDes;
 import netpipe.msg.MsgType;
+import netpipe.pipe.PipeStatus;
+import netpipe.pipe.TaskStatus;
+import service.ftp.FtpClient;
+import service.os.OSClient;
 import cn.oasistech.agent.AgentProtocol;
 import cn.oasistech.agent.GetIdResponse;
 import cn.oasistech.agent.client.AgentAsynRpc;
@@ -30,13 +30,10 @@ public class Host implements Comparable<Host> {
     private String name;
     private HostStatus status;
     private FtpClient ftpClient;
+    private OSClient osClient;
     private AgentSyncRpc syncRpc;
     private AgentAsynRpc asynRpc;
     private Map<String, Integer> services;
-    
-    private int idleTcpPortIndex = 0;
-    private final static int StartTcpPort = 8000;
-    private boolean[] idleTcpPorts = new boolean[2000];
     
     private final static IdGenerator taskIdGenerator = new IdGenerator(1);
     private Map<Integer, RunningTask> runningTasks = new HashMap<Integer, RunningTask>();
@@ -56,22 +53,26 @@ public class Host implements Comparable<Host> {
         
         host.name = address.toString();
         host.services = new HashMap<String, Integer>();
+        
+        host.addAllServices();
+        
         return host;
     }
     
     public boolean runTask(RunningTask task) {
-        
+        osClient.runTask(services.get(Service.os.name()), task.getJobName(), task.getTaskName());
         return true;
     }
-    public void getAllServices() {
-    	// host service for performance
-    	addService(Service.host.name());
+    
+    private void addAllServices() {
+    	// os interface
+    	addService(Service.os.name());
     	
-    	// runtime service for schedule tasks
-    	addService(Service.runtime.name());
-    	
-    	// task service for control tasks
     	listenRunningTask();
+    }
+    
+    public Map<String, Integer> getServices() {
+    	return services;
     }
     
     private void listenRunningTask() {
@@ -97,7 +98,6 @@ public class Host implements Comparable<Host> {
             logger.log("can't find running task when upate task status: id=%d", status.getTaskId());
             return;
         }
-        
         task.setWorkerCount(status.getWorkerCount());
         for (Entry<String, PipeStatus> ps : status.getPipeStatus().entrySet()) {
             String pname = ps.getKey();
@@ -112,18 +112,19 @@ public class Host implements Comparable<Host> {
             }
             if (in == null && out == null) {
                 logger.log("can't find pipe status in master:host=%s, taskid=%d, job=%s, task=%s",
-                        task.getHost().getIp(), status.getTaskId(), task.getJobName(), task.getTaskName());
+                    task.getHost().getIp(), status.getTaskId(), task.getJobName(), task.getTaskName());
             }
         }
     }
     
     public void requestTaskStatus() {
-        for (RunningTask task : runningTasks.values()) {
-            TLVFrame frame = new TLVFrame();
-            frame.setType((short)MsgType.ReportStatus.ordinal());
-            frame.setLength((short)0);
-            this.asynRpc.sendTo(task.getAgentId(), Config.getSerializer().encode(frame));
-        }
+    	try {
+	        for (RunningTask task : runningTasks.values()) {
+	            this.asynRpc.sendMsg(task.getAgentId(), MsgType.ReportStatus.ordinal(), null);
+	        }
+    	} catch (Exception e) {
+    		logger.log("requestTaskStatus exception", e);
+    	}
     }
     
     public RunningTask initRunningTask(TaskDes taskInfo) {
@@ -135,7 +136,7 @@ public class Host implements Comparable<Host> {
             runningTask.getInPipes().put(p.name, InPipe.newInPipe(runningTask, p.name));
         }
         for (PipeDes p : taskInfo.getOutPipe()) {
-            runningTask.getOutPipes().put(p.name, OutPipe.newOutPipe(runningTask, p.name, getAddress()));
+            runningTask.getOutPipes().put(p.name, OutPipe.newOutPipe(runningTask, p.name, allocOutPipeAddress()));
         }
         
         return runningTask;
@@ -165,33 +166,12 @@ public class Host implements Comparable<Host> {
     }
     
     public boolean deployJob(String jobName) {
+    	ftpClient.upload("/usr/netpipe/", PathUtil.combine("job", jobName, "jar", jobName + ".jar"));
         return true;
     }
     
-    public int getIdleTcpPort() {
-        for (int i = idleTcpPortIndex; i < idleTcpPorts.length; i++) {
-            if (idleTcpPorts[i] == true) {
-                idleTcpPorts[i] = false;
-                i++;
-                return i + StartTcpPort;
-            }
-        }
-        
-        return 0;
-    }
-    
-    public void putIdleTcpPort(int port) {
-        int index = port - StartTcpPort;
-        if (index < 0 || index > idleTcpPorts.length) {
-            logger.log("free pipe tcp port is not invalid");
-            return;
-        }
-        
-        idleTcpPorts[index] = true;
-    }
-    
-    public Address getAddress() {
-        return Address.parse("tcp://" + this.ip + ":" + getIdleTcpPort());
+    public Address allocOutPipeAddress() {
+        return Address.parse("tcp://" + this.ip + ":" + osClient.allocatePort(services.get(Service.os.name()), Address.Protocol.Tcp));
     }
     
     @Override
@@ -220,7 +200,6 @@ public class Host implements Comparable<Host> {
     	return this.ip.hashCode();
     }
     
-    @Override
     public int compareTo(Host host) {
     	if (StringUtil.isNotEmpty(name) && StringUtil.isNotEmpty(host.getName())) {
     		return name.compareTo(host.getName());

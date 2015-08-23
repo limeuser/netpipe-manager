@@ -1,7 +1,6 @@
 package netpipe.core;
 
 public enum Service {
-	host,
-	runtime,
+	os, 
 	dpipe_task,
 }
