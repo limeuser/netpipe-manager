@@ -13,15 +13,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-import org.apache.commons.io.FileUtils;
-
-import service.ftp.FtpClient;
-
 import mjoys.util.Logger;
 import mjoys.util.SystemUtil;
 import netpipe.pipe.Job;
 import netpipe.pipe.Task;
 import netpipe.util.Cfg;
+
+import org.apache.commons.io.FileUtils;
 
 public class JobGenerator {
     private static Map<String, JobDes> jobs = new HashMap<String, JobDes>();
@@ -38,22 +36,7 @@ public class JobGenerator {
         } catch (IOException e) {
             logger.log("create source code exception:", e);
         }
-        
-        // 为管道指定地址，生成配置文件，程序启动时，读取配置文件来创建管道
-        
-        
-        // 编译生成的java任务文件
-        
-        // 生成运行脚本
-        
-        // 打包任务和运行脚本并部署到集群
-        
-        // 运行任务
-        
-        // 运行时环境
-        
-        // 调度框架
-        
+
         jobs.put(jobDes.getJob().name(), jobDes);
     }
     
