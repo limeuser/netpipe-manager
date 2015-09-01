@@ -8,7 +8,7 @@ import java.util.TimerTask;
 import java.util.concurrent.TimeUnit;
 
 import mjoys.netpipe.generator.JobDes;
-import mjoys.netpipe.util.Cfg;
+import mjoys.netpipe.util.NetPipeManagerCfg;
 import mjoys.util.Address;
 import mjoys.util.Logger;
 
@@ -20,7 +20,7 @@ public class Cluster {
     
     public void start() {
     	// 读取集群所有slave节点地址，并建立连接
-    	for (String ip : Cfg.instance.getSlaveIps()) {
+    	for (String ip : NetPipeManagerCfg.instance.getSlaveIps()) {
     		this.connectHost(ip);
     	}
     	
@@ -29,13 +29,13 @@ public class Cluster {
     }
     
     public void connectHost(String ip) {
-    	Address agentAddress = Cfg.instance.getAgentAddress(ip);
+    	Address agentAddress = NetPipeManagerCfg.instance.getAgentAddress(ip);
     	if (agentAddress == null) {
     		logger.log("invalide agent address");
     		return;
     	}
     	
-    	Address ftpAddress = Cfg.instance.getFtpAddress(ip);
+    	Address ftpAddress = NetPipeManagerCfg.instance.getFtpAddress(ip);
     	if (ftpAddress == null) {
     		logger.log("invalid ftp address");
     		return;
@@ -102,6 +102,11 @@ public class Cluster {
         // start task
         for (RunningTask task : runningTasks) {
             task.getHost().runTask(task);
+        }
+        
+        // bind out pipe
+        for (RunningTask task : runningTasks) {
+        	task.getHost().bindOutPipe(task);
         }
     }
     

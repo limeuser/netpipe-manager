@@ -11,7 +11,7 @@ import java.util.Map;
 
 import mjoys.netpipe.pipe.Job;
 import mjoys.netpipe.pipe.Task;
-import mjoys.netpipe.util.Cfg;
+import mjoys.netpipe.util.NetPipeManagerCfg;
 import mjoys.util.Logger;
 import mjoys.util.PathUtil;
 import mjoys.util.SystemUtil;
@@ -102,7 +102,7 @@ public class JobGenerator {
     }
     
     private static void createSourceAndJar(String jobRoot, JobDes jobInfo) throws IOException {
-        String jobPath = Cfg.instance.getJobPath();
+        String jobPath = NetPipeManagerCfg.instance.getJobPath();
         File jobDir = new File(jobPath, jobInfo.getJob().name());
         jobDir.mkdir();
         File sourceDir = new File(jobDir, "src");
@@ -123,8 +123,8 @@ public class JobGenerator {
         
         // 复制lib
         FileUtils.copyDirectory(new File(jobRoot, "libs"), libDir);
-        FileUtils.copyFile(new File(PathUtil.combine(Cfg.instance.getRoot(), "lib", "mjoys.jar")), new File(libDir, "mjoys.jar"));
-        FileUtils.copyFile(new File(PathUtil.combine(Cfg.instance.getRoot(), "lib", "netpipe.jar")), new File(libDir, "netpipe.jar"));
+        FileUtils.copyFile(new File(PathUtil.combine(NetPipeManagerCfg.instance.getRoot(), "lib", "mjoys.jar")), new File(libDir, "mjoys.jar"));
+        FileUtils.copyFile(new File(PathUtil.combine(NetPipeManagerCfg.instance.getRoot(), "lib", "netpipe.jar")), new File(libDir, "netpipe.jar"));
         
         // 生成每个任务的源代码文件
         for (TaskDes task : jobInfo.getTasks()) {

@@ -3,6 +3,7 @@ package mjoys.netpipe.generator;
 import java.lang.reflect.Type;
 import java.util.List;
 
+import mjoys.netpipe.manager.OutPipe;
 import mjoys.util.Logger;
 
 public class TaskTemplate {
@@ -26,7 +27,7 @@ public class TaskTemplate {
             "package task;\r\n\r\n" +
             "import mjoys.netpipe.pipe.*;\r\n\r\n" +
             "public class @TaskNameMain {\r\n" +
-            "public static class @TaskNameRunner extends TaskRunner {\r\n" +
+            "public static class @TaskNameRunner extends TaskServer {\r\n" +
             "@InPipeVars" + 
             "@OutPipeVars" +
             "    private @JobClassName job = new @JobClassName();\r\n" +

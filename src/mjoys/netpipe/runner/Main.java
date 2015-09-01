@@ -1,6 +1,6 @@
 package mjoys.netpipe.runner;
 
-import mjoys.netpipe.util.Cfg;
+import mjoys.netpipe.util.NetPipeManagerCfg;
 import mjoys.netpipe.generator.JobDes;
 import mjoys.netpipe.generator.JobGenerator;
 import mjoys.netpipe.manager.Cluster;

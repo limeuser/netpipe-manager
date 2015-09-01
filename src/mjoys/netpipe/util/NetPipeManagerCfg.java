@@ -3,12 +3,12 @@ package mjoys.netpipe.util;
 import mjoys.util.Address;
 import mjoys.util.NumberUtil;
 
-public class Cfg extends mjoys.util.Cfg {
-    private Cfg() {
+public class NetPipeManagerCfg extends mjoys.util.Cfg {
+    private NetPipeManagerCfg() {
         super("cfg", "base.cfg");
     }
     
-    public final static Cfg instance = new Cfg();
+    public final static NetPipeManagerCfg instance = new NetPipeManagerCfg();
     
     private enum Key {
     	master,
@@ -17,6 +17,7 @@ public class Cfg extends mjoys.util.Cfg {
     	agentport,
     	ftpprotocol,
     	ftpport,
+    	pipeprotocol,
         jobpath,
         maxload,
     }
@@ -53,6 +54,10 @@ public class Cfg extends mjoys.util.Cfg {
     	String line = getDefaultPropertyCfg().getProperty(Key.slaves.name());
     	String[] ips = line.split(",");
     	return ips;
+    }
+    
+    public Address.Protocol getPipeProtocol() {
+    	return Address.parseProtocol(getDefaultPropertyCfg().getProperty(Key.pipeprotocol.name()));
     }
     
     public int getDefaultMaxLoad() {

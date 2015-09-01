@@ -11,15 +11,16 @@ import mjoys.agent.GetIdResponse;
 import mjoys.agent.client.AgentAsynRpc;
 import mjoys.agent.client.AgentSyncRpc;
 import mjoys.agent.service.ftp.FtpClient;
+import mjoys.agent.service.netpipe.TaskClient;
 import mjoys.agent.service.os.OSClient;
 import mjoys.agent.util.Tag;
 import mjoys.netpipe.core.Service;
 import mjoys.netpipe.generator.PipeDes;
 import mjoys.netpipe.generator.TaskDes;
-import mjoys.netpipe.msg.MsgType;
+import mjoys.netpipe.pipe.NetPipeCfg;
 import mjoys.netpipe.pipe.PipeStatus;
 import mjoys.netpipe.pipe.TaskStatus;
-import mjoys.netpipe.util.Cfg;
+import mjoys.netpipe.util.NetPipeManagerCfg;
 import mjoys.util.Address;
 import mjoys.util.IdGenerator;
 import mjoys.util.Logger;
@@ -31,9 +32,11 @@ public class Host implements Comparable<Host> {
     private HostStatus status;
     private FtpClient ftpClient;
     private OSClient osClient;
+    private TaskClient taskClient;
     private AgentSyncRpc syncRpc;
     private AgentAsynRpc asynRpc;
     private Map<String, Integer> services;
+    private Map<Integer, Integer> tasks = new HashMap<Integer, Integer>();
     
     private final static IdGenerator taskIdGenerator = new IdGenerator(1);
     private Map<Integer, RunningTask> runningTasks = new HashMap<Integer, RunningTask>();
@@ -45,7 +48,7 @@ public class Host implements Comparable<Host> {
         
         host.ip = ip;
         host.status = new HostStatus();
-        host.status.setMaxLoad(Cfg.instance.getDefaultMaxLoad());
+        host.status.setMaxLoad(NetPipeManagerCfg.instance.getDefaultMaxLoad());
         host.services = new HashMap<String, Integer>();
         
         host.syncRpc = new AgentSyncRpc();
@@ -54,13 +57,16 @@ public class Host implements Comparable<Host> {
         }
         
         host.asynRpc = new AgentAsynRpc();
-        if (host.asynRpc.start(agentAddress, new TaskMsgHandler(host)) == false) {
+        if (host.asynRpc.start(agentAddress, new NetPipeMsgHandler(host)) == false) {
         	return null;
         }
+        
+        host.asynRpc.setTag(new Tag(Agent.PublicTag.servicename.name(), NetPipeCfg.AgentTag.netpipe_manager.name()));
         
     	host.addService(Service.os.name());
     	host.osClient = new OSClient(host.syncRpc);
     	host.ftpClient = new FtpClient(ftpAddress, host.syncRpc);
+    	host.taskClient = new TaskClient(host.asynRpc);
     	
     	host.listenRunningTask();
         
@@ -73,13 +79,27 @@ public class Host implements Comparable<Host> {
         return pid >= 0;
     }
     
-    public Map<String, Integer> getServices() {
-    	return services;
+    public void bindOutPipe(RunningTask task) {
+    	List<String> addresses = new ArrayList<String>();
+    	for (OutPipe out : task.getOutPipes().values()) {
+    		addresses.add(out.getStatus().getAddress().toString());
+    	}
+    	// bind all out pipes
+    	this.taskClient.bindOutPipe(task.getAgentId(), task.getId(), addresses);
+    }
+    
+    public void outPipeBound(int taskId, String outPipeName, String outPipeAddress) {
+    	RunningTask task = runningTasks.get(taskId);
+    	OutPipe outPipe = task.getOutPipes().get(outPipeName);
+    	outPipe.getStatus().setAddress(Address.parse(outPipeAddress));
+    	for (InPipe in : outPipe.getPeers()) {
+    		this.taskClient.connectOutPipe(in.getRunningTask().getAgentId(), in.getRunningTask().getId(), in.getName(), outPipeAddress);
+    	}
     }
     
     private void listenRunningTask() {
         List<Tag> tags = new ArrayList<Tag>();
-        tags.add(new Tag(Agent.PublicTag.servicename.name(), Service.dpipe_task.name()));
+        tags.add(new Tag(NetPipeCfg.AgentTag.netpipe_taskid.name(), ""));
         this.asynRpc.listenConnection(tags);
     }
     
@@ -91,7 +111,13 @@ public class Host implements Comparable<Host> {
         }
         
         task.setAgentId(agentId);
+        if (task.getStage() == RunningTask.Stage.connected) {
+        	return;
+        }
+        
         task.setStage(RunningTask.Stage.connected);
+        
+        bindOutPipe(task);
     }
 
     public void updateRunningTaskStatus(TaskStatus status) {
@@ -100,6 +126,9 @@ public class Host implements Comparable<Host> {
             logger.log("can't find running task when upate task status: id=%d", status.getTaskId());
             return;
         }
+        
+        logger.log("update task status:%s", status.toString());
+        
         task.setWorkerCount(status.getWorkerCount());
         for (Entry<String, PipeStatus> ps : status.getPipeStatus().entrySet()) {
             String pname = ps.getKey();
@@ -122,7 +151,7 @@ public class Host implements Comparable<Host> {
     public void requestTaskStatus() {
     	try {
 	        for (RunningTask task : runningTasks.values()) {
-	            this.asynRpc.sendMsg(task.getAgentId(), MsgType.ReportStatus.ordinal(), null);
+	            this.taskClient.getTaskStatus(task.getAgentId(), task.getId());
 	        }
     	} catch (Exception e) {
     		logger.log("requestTaskStatus exception", e);
@@ -170,12 +199,15 @@ public class Host implements Comparable<Host> {
     public boolean deployJob(String jobName) {
     	String fileName = jobName + ".jar";
     	String dst = PathUtil.combineWithSep("/", "/$NETPIPE_HOME", "jobs", fileName);
-    	String src = PathUtil.combine(Cfg.instance.getJobPath(), jobName, "jar", fileName);
+    	String src = PathUtil.combine(NetPipeManagerCfg.instance.getJobPath(), jobName, "jar", fileName);
     	return ftpClient.upload(dst, src);
     }
     
     public Address allocOutPipeAddress() {
-        return Address.parse("tcp://" + this.ip + ":" + osClient.allocatePort(services.get(Service.os.name()), Address.Protocol.Tcp));
+    	Address.Protocol protocol = NetPipeManagerCfg.instance.getPipeProtocol();
+		int port = osClient.allocatePort(services.get(Service.os.name()), protocol);
+		Address address = Address.newAddress(protocol, Address.getAddressWithPort(this.ip, port));
+		return address;
     }
     
     @Override
@@ -233,5 +265,18 @@ public class Host implements Comparable<Host> {
 
     public void setStatus(HostStatus status) {
         this.status = status;
+    }
+    
+    public Map<Integer, Integer> getTasks() {
+    	return tasks;
+    }
+    
+    public TaskClient getTaskClient() {
+    	return this.taskClient;
+    }
+    
+    
+    public Map<String, Integer> getServices() {
+    	return services;
     }
 }
